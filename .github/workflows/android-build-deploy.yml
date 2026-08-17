@@ -1,0 +1,73 @@
+name: Build Android APK and Deploy
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 'stable'
+
+      - name: Cache pub and gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.pub-cache
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-flutter-${{ hashFiles('**/pubspec.yaml') }}
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Run tests
+        run: flutter test --no-color
+
+      - name: Build release APK
+        run: flutter build apk --release
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: app-release-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
+
+  deploy:
+    name: Deploy APK to server (sslip.io hostname)
+    needs: build
+    runs-on: ubuntu-latest
+    if: ${{ secrets.SSH_HOST }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download APK artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: app-release-apk
+          path: ./artifact
+
+      - name: Copy APK to remote server
+        uses: appleboy/scp-action@v0.1.6
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT || '22' }}
+          source: artifact/app-release.apk
+          target: ${{ secrets.SSH_TARGET_PATH || '/var/www/html/' }}
+
+      - name: Verify reachable URL
+        run: |
+          echo "APK uploaded. If your server public IP is ${{ secrets.SSH_HOST }}, the sslip.io URL is: https://${{ secrets.SSH_HOST }}.sslip.io/$(basename ${{ github.workspace }}/build/app/outputs/flutter-apk/app-release.apk)"
