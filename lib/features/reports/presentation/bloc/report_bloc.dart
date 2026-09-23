@@ -14,13 +14,17 @@ class ReportBloc extends Bloc<ReportEvent, ReportState> {
   ReportBloc({required this.getReport}) : super(const ReportState()) {
     on<LoadReport>(_onLoadReport);
     on<ChangeReportPeriod>(_onChangePeriod);
+    on<ChangeCustomReportRange>(_onChangeCustomRange);
   }
 
   Future<void> _onLoadReport(
       LoadReport event, Emitter<ReportState> emit) async {
     emit(state.copyWith(status: ReportStatus.loading, clearMessage: true));
 
-    final range = event.range ?? state.period.toRange();
+    final range = event.range ??
+        (state.period == ReportPeriod.custom
+            ? state.customRange ?? DateRange.today()
+            : state.period.toRange());
     final result = await getReport(range);
 
     result.fold(
@@ -35,5 +39,14 @@ class ReportBloc extends Bloc<ReportEvent, ReportState> {
       ChangeReportPeriod event, Emitter<ReportState> emit) async {
     emit(state.copyWith(period: event.period));
     add(LoadReport(range: event.period.toRange()));
+  }
+
+  Future<void> _onChangeCustomRange(
+      ChangeCustomReportRange event, Emitter<ReportState> emit) async {
+    emit(state.copyWith(
+      period: ReportPeriod.custom,
+      customRange: event.range,
+    ));
+    add(LoadReport(range: event.range));
   }
 }

@@ -20,3 +20,12 @@ class ChangeReportPeriod extends ReportEvent {
   @override
   List<Object?> get props => [period];
 }
+
+class ChangeCustomReportRange extends ReportEvent {
+  final DateRange range;
+
+  const ChangeCustomReportRange(this.range);
+
+  @override
+  List<Object?> get props => [range];
+}

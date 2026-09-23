@@ -132,8 +132,11 @@ class _DashboardPageState extends State<DashboardPage> {
           final selected = state.period == period;
           return Expanded(
             child: GestureDetector(
-              onTap: () =>
-                  context.read<ReportBloc>().add(ChangeReportPeriod(period)),
+              onTap: () => period == ReportPeriod.custom
+                  ? _pickCustomRange(context, state.customRange)
+                  : context
+                      .read<ReportBloc>()
+                      .add(ChangeReportPeriod(period)),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 150),
                 padding: const EdgeInsets.symmetric(vertical: 10),
@@ -150,7 +153,9 @@ class _DashboardPageState extends State<DashboardPage> {
                       : null,
                 ),
                 child: Text(
-                  period.label,
+                  period == ReportPeriod.custom && state.customRange != null
+                      ? state.customRange!.label
+                      : period.label,
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontWeight: FontWeight.w600,
@@ -165,6 +170,28 @@ class _DashboardPageState extends State<DashboardPage> {
         }).toList(),
       ),
     );
+  }
+
+  Future<void> _pickCustomRange(
+      BuildContext context, DateRange? currentRange) async {
+    final picked = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now(),
+      initialDateRange: currentRange == null
+          ? null
+          : DateTimeRange(
+              start: currentRange.from,
+              end: DateTime(currentRange.to.year, currentRange.to.month,
+                  currentRange.to.day - 1),
+            ),
+    );
+    if (!mounted || picked == null) return;
+
+    final range = DateRange.custom(picked.start, picked.end,
+        label: '${picked.start.day}/${picked.start.month} - '
+            '${picked.end.day}/${picked.end.month}');
+    context.read<ReportBloc>().add(ChangeCustomReportRange(range));
   }
 
   Widget _buildHeadlineCards(BuildContext context, ReportSummary summary) {

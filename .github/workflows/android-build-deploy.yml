@@ -40,7 +40,7 @@ jobs:
         run: flutter build apk --release
 
       - name: Upload APK artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: app-release-apk
           path: build/app/outputs/flutter-apk/app-release.apk
@@ -49,16 +49,26 @@ jobs:
     name: Deploy APK to server (sslip.io hostname)
     needs: build
     runs-on: ubuntu-latest
-    if: ${{ secrets.SSH_HOST }}
     steps:
       - uses: actions/checkout@v4
+      - name: Check SSH deploy secrets
+        id: deploy-secrets
+        run: |
+          if [ -z "${{ secrets.SSH_HOST }}" ] || [ -z "${{ secrets.SSH_USER }}" ] || [ -z "${{ secrets.SSH_PRIVATE_KEY }}" ]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Download APK artifact
-        uses: actions/download-artifact@v3
+        if: steps.deploy-secrets.outputs.configured == 'true'
+        uses: actions/download-artifact@v4
         with:
           name: app-release-apk
           path: ./artifact
 
       - name: Copy APK to remote server
+        if: steps.deploy-secrets.outputs.configured == 'true'
         uses: appleboy/scp-action@v0.1.6
         with:
           host: ${{ secrets.SSH_HOST }}
@@ -69,5 +79,6 @@ jobs:
           target: ${{ secrets.SSH_TARGET_PATH || '/var/www/html/' }}
 
       - name: Verify reachable URL
+        if: steps.deploy-secrets.outputs.configured == 'true'
         run: |
           echo "APK uploaded. If your server public IP is ${{ secrets.SSH_HOST }}, the sslip.io URL is: https://${{ secrets.SSH_HOST }}.sslip.io/$(basename ${{ github.workspace }}/build/app/outputs/flutter-apk/app-release.apk)"
